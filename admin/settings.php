@@ -1,14 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/header.php';
-
-// Check if user is admin
 requireAdmin();
+
+function updateSetting($key, $value) {
+    global $pdo;
+    $stmt = $pdo->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+    $stmt->execute([$key, $value, $value]);
+}
 
 // Get all site settings
 $settings = fetchAll("SELECT * FROM site_settings");
-
-// Convert settings array to associative array for easier access
 $site_settings = [];
 foreach ($settings as $setting) {
     $site_settings[$setting['setting_key']] = $setting['setting_value'];
@@ -17,93 +18,107 @@ foreach ($settings as $setting) {
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
-        $errors[] = 'Invalid CSRF token';
+        $errors[] = 'Invalid CSRF token. Please refresh and try again.';
     } else {
-        // Update site name
         $site_name = trim($_POST['site_name'] ?? '');
+        $site_tagline = trim($_POST['site_tagline'] ?? '');
+        $about_text = trim($_POST['about_text'] ?? '');
+        $contact_email = trim($_POST['contact_email'] ?? '');
+        $contact_phone = trim($_POST['contact_phone'] ?? '');
+
         if (empty($site_name)) {
-            $errors[] = 'Site name is required';
-        } else {
-            updateSetting('site_name', $site_name);
+            $errors[] = 'Site Name is required';
         }
 
-        // Update site tagline
-        $site_tagline = trim($_POST['site_tagline'] ?? '');
-        updateSetting('site_tagline', $site_tagline);
-
-        // Update about text
-        $about_text = trim($_POST['about_text'] ?? '');
-        updateSetting('about_text', $about_text);
-
-        // Update contact email
-        $contact_email = trim($_POST['contact_email'] ?? '');
         if (!empty($contact_email) && !filter_var($contact_email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Invalid contact email format';
-        } else {
-            updateSetting('contact_email', $contact_email);
         }
 
-        // Update contact phone
-        $contact_phone = trim($_POST['contact_phone'] ?? '');
-        updateSetting('contact_phone', $contact_phone);
-
         if (empty($errors)) {
+            updateSetting('site_name', $site_name);
+            updateSetting('site_tagline', $site_tagline);
+            updateSetting('about_text', $about_text);
+            updateSetting('contact_email', $contact_email);
+            updateSetting('contact_phone', $contact_phone);
+
+            setFlash('success', 'Site settings updated successfully.');
             header('Location: settings.php');
             exit;
         }
     }
 }
 
-function updateSetting($key, $value) {
-    global $pdo;
-    $stmt = $pdo->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-    $stmt->execute([$key, $value, $value]);
-}
+$page_title = 'Site Settings';
+$breadcrumbs = [
+    ['title' => 'Dashboard', 'url' => '/sound/admin/dashboard.php'],
+    ['title' => 'Site Settings']
+];
+require_once __DIR__ . '/includes/admin_header.php';
 ?>
 
-<div class="container">
-    <h1>Site Settings</h1>
+<div class="admin-page-header">
+    <div>
+        <h1>Site Settings</h1>
+        <p style="color: var(--admin-text-muted); margin: 4px 0 0 0; font-size: 14px;">Configure platform identity, branding, and contact details.</p>
+    </div>
+    <div class="header-actions">
+        <a href="dashboard.php" class="btn btn-secondary">
+            &larr; Back to Dashboard
+        </a>
+    </div>
+</div>
 
-    <?php if (!empty($errors)): ?>
-        <div class="alert alert-error">
-            <?php foreach ($errors as $error): ?>
-                <p><?php echo htmlspecialchars($error); ?></p>
-            <?php endforeach; ?>
+<?php if (!empty($errors)): ?>
+    <div class="admin-alert admin-alert-error">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <div>
+            <strong>Please fix the following errors:</strong>
+            <ul>
+                <?php foreach ($errors as $error): ?>
+                    <li><?php echo htmlspecialchars($error); ?></li>
+                <?php endforeach; ?>
+            </ul>
         </div>
-    <?php endif; ?>
+    </div>
+<?php endif; ?>
 
+<div class="admin-form-card">
     <form method="post" action="settings.php">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 
-        <div class="form-group">
-            <label for="site_name">Site Name</label>
-            <input type="text" id="site_name" name="site_name" value="<?php echo htmlspecialchars($site_settings['site_name'] ?? ''); ?>" required>
+        <div class="admin-form-group">
+            <label for="site_name">Site Name <span class="required-mark">*</span></label>
+            <input type="text" id="site_name" name="site_name" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['site_name'] ?? ($site_settings['site_name'] ?? 'SOUND')); ?>" required>
         </div>
 
-        <div class="form-group">
+        <div class="admin-form-group">
             <label for="site_tagline">Site Tagline</label>
-            <input type="text" id="site_tagline" name="site_tagline" value="<?php echo htmlspecialchars($site_settings['site_tagline'] ?? ''); ?>">
+            <input type="text" id="site_tagline" name="site_tagline" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['site_tagline'] ?? ($site_settings['site_tagline'] ?? '')); ?>" placeholder="Your Music and Video Streaming Platform">
         </div>
 
-        <div class="form-group">
-            <label for="about_text">About Text</label>
-            <textarea id="about_text" name="about_text" rows="5"><?php echo htmlspecialchars($site_settings['about_text'] ?? ''); ?></textarea>
+        <div class="admin-form-group">
+            <label for="about_text">About Platform Description</label>
+            <textarea id="about_text" name="about_text" class="admin-form-control" rows="5"><?php echo htmlspecialchars($_POST['about_text'] ?? ($site_settings['about_text'] ?? '')); ?></textarea>
         </div>
 
-        <div class="form-group">
-            <label for="contact_email">Contact Email</label>
-            <input type="email" id="contact_email" name="contact_email" value="<?php echo htmlspecialchars($site_settings['contact_email'] ?? ''); ?>">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="admin-form-group">
+                <label for="contact_email">Support / Contact Email</label>
+                <input type="email" id="contact_email" name="contact_email" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['contact_email'] ?? ($site_settings['contact_email'] ?? '')); ?>" placeholder="contact@example.com">
+            </div>
+
+            <div class="admin-form-group">
+                <label for="contact_phone">Contact Phone</label>
+                <input type="tel" id="contact_phone" name="contact_phone" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['contact_phone'] ?? ($site_settings['contact_phone'] ?? '')); ?>" placeholder="+1234567890">
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="contact_phone">Contact Phone</label>
-            <input type="tel" id="contact_phone" name="contact_phone" value="<?php echo htmlspecialchars($site_settings['contact_phone'] ?? ''); ?>">
+        <div class="admin-form-actions">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+            <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
         </div>
-
-        <button type="submit" class="btn btn-primary">Update Settings</button>
     </form>
 </div>
 
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php require_once __DIR__ . '/includes/admin_footer.php'; ?>

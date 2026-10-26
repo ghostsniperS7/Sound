@@ -1,51 +1,72 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 ?>
-        </main>
+            </main>
+        </div><!-- /.main-wrapper -->
+
+        <!-- Bottom Player Bar (Spotify Style) -->
         <footer class="player-bar">
-            <div class="player-controls">
-                <button id="prev-btn" aria-label="Previous track">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-                <button id="play-pause-btn" aria-label="Play">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
-                    </svg>
-                </button>
-                <button id="next-btn" aria-label="Next track">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-            </div>
+            <!-- Left: Current Track Info -->
             <div class="track-info">
-                <div class="cover"></div>
+                <div class="cover" id="player-track-cover">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 18V5l12-2v13"></path>
+                        <circle cx="6" cy="18" r="3"></circle>
+                        <circle cx="18" cy="16" r="3"></circle>
+                    </svg>
+                </div>
                 <div class="details">
-                    <div class="title">No track playing</div>
-                    <div class="artist">-</div>
+                    <div class="title" id="player-track-title">No track playing</div>
+                    <div class="artist" id="player-track-artist">Select a track to play</div>
                 </div>
             </div>
-            <div class="progress-container">
-                <div class="time current-time">0:00</div>
-                <div class="progress-bar">
-                    <div class="progress"></div>
+
+            <!-- Center: Player Controls & Seek Bar -->
+            <div class="player-center">
+                <div class="player-controls">
+                    <button id="prev-btn" aria-label="Previous track" title="Previous">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                            <line x1="5" y1="19" x2="5" y2="5"></line>
+                        </svg>
+                    </button>
+                    <button id="play-pause-btn" aria-label="Play" title="Play">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="8 5 19 12 8 19 8 5"></polygon>
+                        </svg>
+                    </button>
+                    <button id="next-btn" aria-label="Next track" title="Next">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                            <line x1="19" y1="5" x2="19" y2="19"></line>
+                        </svg>
+                    </button>
                 </div>
-                <div class="time total-time">0:00</div>
+
+                <div class="progress-container">
+                    <span class="time current-time">0:00</span>
+                    <div class="progress-bar" role="slider" aria-label="Track progress" tabindex="0">
+                        <div class="progress"></div>
+                    </div>
+                    <span class="time total-time">0:00</span>
+                </div>
             </div>
+
+            <!-- Right: Volume Controls -->
             <div class="volume-controls">
-                <button id="mute-btn" aria-label="Mute">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 4L9 7H6C5.44772 7 5 7.44772 5 8V16C5 16.5523 5.44772 17 6 17H9L12 20V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <button id="mute-btn" aria-label="Mute" title="Mute/Unmute">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     </svg>
                 </button>
-                <div class="volume-bar">
+                <div class="volume-bar" role="slider" aria-label="Volume" tabindex="0">
                     <div class="volume"></div>
                 </div>
             </div>
         </footer>
-    </div>
+    </div><!-- /.app -->
+
     <script src="/sound/assets/js/app.js"></script>
 </body>
 </html>

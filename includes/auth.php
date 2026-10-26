@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/helpers.php';
 
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
 function isAdmin() {
-    return isLoggedIn() && $_SESSION['user_role'] === 'admin';
+    return isLoggedIn() && (($_SESSION['user_role'] ?? '') === 'admin');
 }
 
 function requireLogin() {
@@ -17,8 +18,12 @@ function requireLogin() {
 }
 
 function requireAdmin() {
+    if (!isLoggedIn()) {
+        header('Location: /sound/login.php');
+        exit;
+    }
     if (!isAdmin()) {
-        header('Location: /sound/');
+        header('Location: /sound/index.php');
         exit;
     }
 }
@@ -42,14 +47,26 @@ function login($userid, $password) {
 }
 
 function logout() {
-    session_unset();
-    session_destroy();
+    if (session_status() === PHP_SESSION_NONE) {
+        @session_start();
+    }
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    @session_destroy();
     header('Location: /sound/');
     exit;
 }
 
-// Start session
-session_start();
+// Ensure session is started
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
 
 // CSRF protection
 function generateCSRFToken() {
@@ -60,9 +77,8 @@ function generateCSRFToken() {
 }
 
 function validateCSRFToken($token) {
-    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    return !empty($token) && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 // Initialize CSRF token for forms
 $csrf_token = generateCSRFToken();
-?>

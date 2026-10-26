@@ -2,7 +2,11 @@
 require_once 'includes/auth.php';
 
 if (isLoggedIn()) {
-    header('Location: /sound/');
+    if (isAdmin()) {
+        header('Location: /sound/admin/dashboard.php');
+    } else {
+        header('Location: /sound/index.php');
+    }
     exit;
 }
 
@@ -25,7 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             if (login($userid, $password)) {
-                header('Location: /sound/');
+                if (isAdmin()) {
+                    header('Location: /sound/admin/dashboard.php');
+                } else {
+                    header('Location: /sound/index.php');
+                }
                 exit;
             } else {
                 $errors[] = 'Invalid user ID or password';

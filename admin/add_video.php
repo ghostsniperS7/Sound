@@ -1,55 +1,31 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/header.php';
-
-// Check if user is admin
 requireAdmin();
 
-// Get all artists for dropdown
 $artists = fetchAll("SELECT * FROM artists ORDER BY name");
-
-// Get all genres for dropdown
 $genres = fetchAll("SELECT * FROM genres ORDER BY name");
-
-// Get all languages for dropdown
 $languages = fetchAll("SELECT * FROM languages ORDER BY name");
-
-// Get all years for dropdown
 $years = fetchAll("SELECT DISTINCT year FROM years ORDER BY year DESC");
 
-$errors = [];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
+    $errors = [];
+
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
-        $errors[] = 'Invalid CSRF token';
+        $errors[] = 'Invalid CSRF token. Please refresh and try again.';
     } else {
-        // Validate and process form data
         $title = trim($_POST['title'] ?? '');
-        $artist_id = $_POST['artist_id'] ?? '';
-        $genre_id = $_POST['genre_id'] ?? '';
-        $language_id = $_POST['language_id'] ?? '';
-        $year = $_POST['year'] ?? '';
+        $artist_id = intval($_POST['artist_id'] ?? 0);
+        $genre_id = intval($_POST['genre_id'] ?? 0);
+        $language_id = intval($_POST['language_id'] ?? 0);
+        $year = intval($_POST['year'] ?? 0);
         $description = trim($_POST['description'] ?? '');
 
-        // Validate required fields
-        if (empty($title)) {
-            $errors[] = 'Title is required';
-        }
-        if (empty($artist_id)) {
-            $errors[] = 'Artist is required';
-        }
-        if (empty($genre_id)) {
-            $errors[] = 'Genre is required';
-        }
-        if (empty($language_id)) {
-            $errors[] = 'Language is required';
-        }
-        if (empty($year)) {
-            $errors[] = 'Year is required';
-        }
+        if (empty($title)) $errors[] = 'Title is required';
+        if (empty($artist_id)) $errors[] = 'Artist is required';
+        if (empty($genre_id)) $errors[] = 'Genre is required';
+        if (empty($language_id)) $errors[] = 'Language is required';
+        if (empty($year)) $errors[] = 'Year is required';
 
-        // Handle file uploads
         $file_path = '';
         $thumbnail_path = '';
 
@@ -58,78 +34,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $file_tmp_path = $_FILES['video_file']['tmp_name'];
             $file_name = basename($_FILES['video_file']['name']);
             $file_size = $_FILES['video_file']['size'];
-            $file_type = $_FILES['video_file']['type'];
+            $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
-            // Validate file type
-            $allowed_types = ['video/mp4', 'video/quicktime'];
-            if (!in_array($file_type, $allowed_types)) {
-                $errors[] = 'Only MP4 files are allowed for videos';
+            $allowed_video_exts = ['mp4', 'webm', 'mov'];
+            if (!in_array($file_ext, $allowed_video_exts)) {
+                $errors[] = 'Only MP4, WebM, and MOV files are allowed for videos';
             }
 
-            // Validate file size (1GB max)
-            if ($file_size > 1024 * 1024 * 1024) {
-                $errors[] = 'Video file size must be less than 1GB';
+            if ($file_size > 500 * 1024 * 1024) {
+                $errors[] = 'Video file size must be less than 500MB';
             }
 
             if (empty($errors)) {
-                // Generate unique filename
-                $file_ext = pathinfo($file_name, PATHINFO_EXTENSION);
-                $file_basename = uniqid() . '.' . $file_ext;
-                $file_path = 'uploads/video/' . $file_basename;
-
-                // Create directory if it doesn't exist
-                if (!file_exists(__DIR__ . '/../uploads/video')) {
-                    mkdir(__DIR__ . '/../uploads/video', 0777, true);
+                $file_basename = uniqid('video_') . '.' . $file_ext;
+                $dest_dir = UPLOAD_DIR . 'videos';
+                if (!is_dir($dest_dir)) {
+                    @mkdir($dest_dir, 0777, true);
                 }
+                $dest_path = $dest_dir . DIRECTORY_SEPARATOR . $file_basename;
 
-                // Move uploaded file
-                if (!move_uploaded_file($file_tmp_path, __DIR__ . '/../' . $file_path)) {
-                    $errors[] = 'Failed to upload video file';
+                if (!move_uploaded_file($file_tmp_path, $dest_path)) {
+                    $errors[] = 'Failed to save uploaded video file';
+                } else {
+                    $file_path = 'uploads/videos/' . $file_basename;
                 }
             }
         } else {
             $errors[] = 'Video file is required';
         }
 
-        // Handle thumbnail image upload
-        if (isset($_FILES['thumbnail_image']) && $_FILES['thumbnail_image']['error'] === UPLOAD_ERR_OK) {
-            $thumbnail_tmp_path = $_FILES['thumbnail_image']['tmp_name'];
-            $thumbnail_name = basename($_FILES['thumbnail_image']['name']);
-            $thumbnail_size = $_FILES['thumbnail_image']['size'];
-            $thumbnail_type = $_FILES['thumbnail_image']['type'];
+        // Handle thumbnail upload
+        if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === UPLOAD_ERR_OK) {
+            $thumb_tmp_path = $_FILES['thumbnail']['tmp_name'];
+            $thumb_name = basename($_FILES['thumbnail']['name']);
+            $thumb_size = $_FILES['thumbnail']['size'];
+            $thumb_ext = strtolower(pathinfo($thumb_name, PATHINFO_EXTENSION));
 
-            // Validate file type
-            $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-            if (!in_array($thumbnail_type, $allowed_types)) {
-                $errors[] = 'Only JPEG, PNG, and GIF images are allowed for thumbnails';
+            $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (!in_array($thumb_ext, $allowed_exts)) {
+                $errors[] = 'Only JPEG, PNG, GIF, and WEBP images are allowed for thumbnail';
             }
 
-            // Validate file size (10MB max)
-            if ($thumbnail_size > 10 * 1024 * 1024) {
-                $errors[] = 'Thumbnail image size must be less than 10MB';
+            if ($thumb_size > 10 * 1024 * 1024) {
+                $errors[] = 'Thumbnail size must be less than 10MB';
             }
 
             if (empty($errors)) {
-                // Generate unique filename
-                $thumbnail_ext = pathinfo($thumbnail_name, PATHINFO_EXTENSION);
-                $thumbnail_basename = uniqid() . '.' . $thumbnail_ext;
-                $thumbnail_path = 'uploads/covers/' . $thumbnail_basename;
-
-                // Create directory if it doesn't exist
-                if (!file_exists(__DIR__ . '/../uploads/covers')) {
-                    mkdir(__DIR__ . '/../uploads/covers', 0777, true);
+                $thumb_basename = uniqid('thumb_') . '.' . $thumb_ext;
+                $dest_dir = UPLOAD_DIR . 'thumbnails';
+                if (!is_dir($dest_dir)) {
+                    @mkdir($dest_dir, 0777, true);
                 }
+                $dest_path = $dest_dir . DIRECTORY_SEPARATOR . $thumb_basename;
 
-                // Move uploaded file
-                if (!move_uploaded_file($thumbnail_tmp_path, __DIR__ . '/../' . $thumbnail_path)) {
-                    $errors[] = 'Failed to upload thumbnail image';
+                if (!move_uploaded_file($thumb_tmp_path, $dest_path)) {
+                    $errors[] = 'Failed to save uploaded thumbnail image';
+                } else {
+                    $thumbnail_path = 'uploads/thumbnails/' . $thumb_basename;
                 }
             }
         }
 
-        // If no errors, create video entry
         if (empty($errors)) {
-            // Get or create year
             $year_id = fetchOne("SELECT id FROM years WHERE year = ?", [$year])['id'] ?? null;
             if (!$year_id) {
                 $stmt = $pdo->prepare("INSERT INTO years (year) VALUES (?)");
@@ -137,94 +103,137 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $year_id = $pdo->lastInsertId();
             }
 
-            // Insert video record
             $stmt = $pdo->prepare("INSERT INTO videos (artist_id, genre_id, language_id, year_id, title, file_path, thumbnail, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$artist_id, $genre_id, $language_id, $year_id, $title, $file_path, $thumbnail_path, $description]);
 
+            clearOldInput();
+            setFlash('success', 'Video "' . htmlspecialchars($title) . '" uploaded successfully.');
             header('Location: videos.php');
             exit;
         }
     }
+
+    setFlash('error', implode('<br>', $errors));
+    setOldInput($_POST);
+    header('Location: add_video.php');
+    exit;
 }
+
+$form_title = getOldInput('title', '');
+$form_artist_id = getOldInput('artist_id', 0);
+$form_genre_id = getOldInput('genre_id', 0);
+$form_language_id = getOldInput('language_id', 0);
+$form_year = getOldInput('year', date('Y'));
+$form_description = getOldInput('description', '');
+clearOldInput();
+
+$page_title = 'Add New Video';
+$breadcrumbs = [
+    ['title' => 'Dashboard', 'url' => '/sound/admin/dashboard.php'],
+    ['title' => 'Videos', 'url' => '/sound/admin/videos.php'],
+    ['title' => 'Add Video']
+];
+require_once __DIR__ . '/includes/admin_header.php';
 ?>
 
-<div class="container">
-    <h1>Add New Video</h1>
+<div class="admin-page-header">
+    <div>
+        <h1>Add New Video</h1>
+        <p style="color: var(--admin-text-muted); margin: 4px 0 0 0; font-size: 14px;">Upload a video and optional thumbnail.</p>
+    </div>
+    <div class="header-actions">
+        <a href="videos.php" class="btn btn-secondary">
+            &larr; Back to Videos
+        </a>
+    </div>
+</div>
 
-    <?php if (!empty($errors)): ?>
-        <div class="alert alert-error">
-            <?php foreach ($errors as $error): ?>
-                <p><?php echo htmlspecialchars($error); ?></p>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-
+<div class="admin-form-card">
     <form method="post" action="add_video.php" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 
-        <div class="form-group">
-            <label for="title">Title</label>
-            <input type="text" id="title" name="title" required>
+        <div class="admin-form-group">
+            <label for="title">Video Title <span class="required-mark">*</span></label>
+            <input type="text" id="title" name="title" class="admin-form-control" value="<?php echo htmlspecialchars($form_title); ?>" required placeholder="e.g. Official Music Video">
         </div>
 
-        <div class="form-group">
-            <label for="artist_id">Artist</label>
-            <select id="artist_id" name="artist_id" required>
-                <option value="">Select Artist</option>
-                <?php foreach ($artists as $artist): ?>
-                    <option value="<?php echo $artist['id']; ?>"><?php echo htmlspecialchars($artist['name']); ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="admin-form-group">
+                <label for="artist_id">Artist <span class="required-mark">*</span></label>
+                <select id="artist_id" name="artist_id" class="admin-form-control" required>
+                    <option value="">Select Artist</option>
+                    <?php foreach ($artists as $artist): ?>
+                        <option value="<?php echo $artist['id']; ?>" <?php echo ($form_artist_id == $artist['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($artist['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="admin-form-group">
+                <label for="genre_id">Genre <span class="required-mark">*</span></label>
+                <select id="genre_id" name="genre_id" class="admin-form-control" required>
+                    <option value="">Select Genre</option>
+                    <?php foreach ($genres as $genre): ?>
+                        <option value="<?php echo $genre['id']; ?>" <?php echo ($form_genre_id == $genre['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($genre['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="genre_id">Genre</label>
-            <select id="genre_id" name="genre_id" required>
-                <option value="">Select Genre</option>
-                <?php foreach ($genres as $genre): ?>
-                    <option value="<?php echo $genre['id']; ?>"><?php echo htmlspecialchars($genre['name']); ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="admin-form-group">
+                <label for="language_id">Language <span class="required-mark">*</span></label>
+                <select id="language_id" name="language_id" class="admin-form-control" required>
+                    <option value="">Select Language</option>
+                    <?php foreach ($languages as $language): ?>
+                        <option value="<?php echo $language['id']; ?>" <?php echo ($form_language_id == $language['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($language['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="admin-form-group">
+                <label for="year">Release Year <span class="required-mark">*</span></label>
+                <select id="year" name="year" class="admin-form-control" required>
+                    <option value="">Select Year</option>
+                    <?php 
+                    $current_yr = intval(date('Y'));
+                    for ($y = $current_yr + 1; $y >= 1950; $y--): 
+                    ?>
+                        <option value="<?php echo $y; ?>" <?php echo ($form_year == $y) ? 'selected' : ''; ?>>
+                            <?php echo $y; ?>
+                        </option>
+                    <?php endfor; ?>
+                </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="language_id">Language</label>
-            <select id="language_id" name="language_id" required>
-                <option value="">Select Language</option>
-                <?php foreach ($languages as $language): ?>
-                    <option value="<?php echo $language['id']; ?>"><?php echo htmlspecialchars($language['name']); ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="admin-form-group">
+            <label for="video_file">Video File (MP4, WebM, MOV) <span class="required-mark">*</span></label>
+            <input type="file" id="video_file" name="video_file" class="admin-form-control" accept=".mp4,.webm,.mov,video/*" required>
+            <div class="admin-form-hint">Accepted formats: MP4, WebM, MOV (Max size: 500MB)</div>
         </div>
 
-        <div class="form-group">
-            <label for="year">Year</label>
-            <select id="year" name="year" required>
-                <option value="">Select Year</option>
-                <?php foreach ($years as $year): ?>
-                    <option value="<?php echo $year['year']; ?>"><?php echo htmlspecialchars($year['year']); ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="admin-form-group">
+            <label for="thumbnail">Thumbnail Image</label>
+            <input type="file" id="thumbnail" name="thumbnail" class="admin-form-control" accept=".jpg,.jpeg,.png,.gif,.webp,image/*">
+            <div class="admin-form-hint">Accepted formats: JPG, PNG, GIF, WEBP (Max size: 10MB)</div>
         </div>
 
-        <div class="form-group">
-            <label for="video_file">Video File (MP4)</label>
-            <input type="file" id="video_file" name="video_file" accept=".mp4,video/mp4" required>
-        </div>
-
-        <div class="form-group">
-            <label for="thumbnail_image">Thumbnail Image (JPEG, PNG, GIF)</label>
-            <input type="file" id="thumbnail_image" name="thumbnail_image" accept=".jpg,.jpeg,.png,.gif,image/jpeg,image/png,image/gif">
-        </div>
-
-        <div class="form-group">
+        <div class="admin-form-group">
             <label for="description">Description</label>
-            <textarea id="description" name="description" rows="5"></textarea>
+            <textarea id="description" name="description" class="admin-form-control" rows="4" placeholder="Optional video description..."><?php echo htmlspecialchars($form_description); ?></textarea>
         </div>
 
-        <button type="submit" class="btn btn-primary">Add Video</button>
-        <a href="videos.php" class="btn btn-secondary">Cancel</a>
+        <div class="admin-form-actions">
+            <button type="submit" class="btn btn-primary">Add Video</button>
+            <a href="videos.php" class="btn btn-secondary">Cancel</a>
+        </div>
     </form>
 </div>
 
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php require_once __DIR__ . '/includes/admin_footer.php'; ?>

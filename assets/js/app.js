@@ -1,16 +1,18 @@
-// Player functionality
+// SOUND - Modern Audio Player & Public SPA Navigation
 document.addEventListener('DOMContentLoaded', function() {
     const playPauseBtn = document.getElementById('play-pause-btn');
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
     const muteBtn = document.getElementById('mute-btn');
     const progressBar = document.querySelector('.progress-bar');
+    const progress = document.querySelector('.progress');
     const volumeBar = document.querySelector('.volume-bar');
+    const volume = document.querySelector('.volume');
     const currentTimeElement = document.querySelector('.current-time');
     const totalTimeElement = document.querySelector('.total-time');
-    const trackTitleElement = document.querySelector('.track-info .title');
-    const trackArtistElement = document.querySelector('.track-info .artist');
-    const trackCoverElement = document.querySelector('.track-info .cover');
+    const trackTitleElement = document.getElementById('player-track-title') || document.querySelector('.track-info .title');
+    const trackArtistElement = document.getElementById('player-track-artist') || document.querySelector('.track-info .artist');
+    const trackCoverElement = document.getElementById('player-track-cover') || document.querySelector('.track-info .cover');
 
     let audio = new Audio();
     let isPlaying = false;
@@ -19,165 +21,372 @@ document.addEventListener('DOMContentLoaded', function() {
     let isMuted = false;
     let currentVolume = 0.7;
 
-    // Set initial volume
+    // SVG Icons
+    const playIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="8 5 19 12 8 19 8 5"></polygon></svg>';
+    const pauseIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+    const volumeHighIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+    const volumeMuteIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
+
+    // Initial volume
     audio.volume = currentVolume;
+    if (volume) volume.style.width = (currentVolume * 100) + '%';
 
     // Play/Pause functionality
-    playPauseBtn.addEventListener('click', function() {
-        if (isPlaying) {
-            audio.pause();
-            isPlaying = false;
-            playPauseBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5V19L19 12L8 5Z" fill="currentColor"/></svg>';
-        } else {
-            if (currentTrackIndex === -1 && trackList.length > 0) {
-                currentTrackIndex = 0;
-                loadTrack(currentTrackIndex);
+    if (playPauseBtn) {
+        playPauseBtn.addEventListener('click', function() {
+            if (!audio.src) {
+                // If there are tracks on the page, play the first one
+                if (trackList.length > 0) {
+                    currentTrackIndex = 0;
+                    loadTrack(currentTrackIndex);
+                    audio.play().catch(function() {});
+                    isPlaying = true;
+                    playPauseBtn.innerHTML = pauseIcon;
+                    return;
+                }
+                return;
             }
-            audio.play();
+
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                playPauseBtn.innerHTML = playIcon;
+            } else {
+                audio.play().catch(function(e) {
+                    console.warn('Playback error:', e);
+                });
+                isPlaying = true;
+                playPauseBtn.innerHTML = pauseIcon;
+            }
+        });
+    }
+
+    // Previous track
+    if (prevBtn) {
+        prevBtn.addEventListener('click', function() {
+            if (trackList.length === 0) return;
+            currentTrackIndex = (currentTrackIndex - 1 + trackList.length) % trackList.length;
+            loadTrack(currentTrackIndex);
+            audio.play().catch(function() {});
             isPlaying = true;
-            playPauseBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" fill="currentColor"/></svg>';
-        }
-    });
+            if (playPauseBtn) playPauseBtn.innerHTML = pauseIcon;
+        });
+    }
 
-    // Previous track functionality
-    prevBtn.addEventListener('click', function() {
-        if (trackList.length === 0) return;
-        currentTrackIndex = (currentTrackIndex - 1 + trackList.length) % trackList.length;
-        loadTrack(currentTrackIndex);
-        audio.play();
-        isPlaying = true;
-        playPauseBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" fill="currentColor"/></svg>';
-    });
+    // Next track
+    if (nextBtn) {
+        nextBtn.addEventListener('click', function() {
+            if (trackList.length === 0) return;
+            currentTrackIndex = (currentTrackIndex + 1) % trackList.length;
+            loadTrack(currentTrackIndex);
+            audio.play().catch(function() {});
+            isPlaying = true;
+            if (playPauseBtn) playPauseBtn.innerHTML = pauseIcon;
+        });
+    }
 
-    // Next track functionality
-    nextBtn.addEventListener('click', function() {
-        if (trackList.length === 0) return;
-        currentTrackIndex = (currentTrackIndex + 1) % trackList.length;
-        loadTrack(currentTrackIndex);
-        audio.play();
-        isPlaying = true;
-        playPauseBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 19H10V5H6V19ZM14 5V19H18V5H14Z" fill="currentColor"/></svg>';
-    });
+    // Mute toggle
+    if (muteBtn) {
+        muteBtn.addEventListener('click', function() {
+            isMuted = !isMuted;
+            audio.muted = isMuted;
+            muteBtn.innerHTML = isMuted ? volumeMuteIcon : volumeHighIcon;
+            if (volume) volume.style.width = isMuted ? '0%' : (currentVolume * 100) + '%';
+        });
+    }
 
-    // Mute functionality
-    muteBtn.addEventListener('click', function() {
-        isMuted = !isMuted;
-        audio.muted = isMuted;
-        if (isMuted) {
-            muteBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4L9 7H6C5.44772 7 5 7.44772 5 8V16C5 16.5523 5.44772 17 6 17H9L12 20V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-        } else {
-            muteBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4L9 7H6C5.44772 7 5 7.44772 5 8V16C5 16.5523 5.44772 17 6 17H9L12 20V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-        }
-    });
-
-    // Progress bar functionality
+    // Progress bar update
     audio.addEventListener('timeupdate', function() {
-        if (audio.duration) {
+        if (audio.duration && !isNaN(audio.duration)) {
             const progressPercent = (audio.currentTime / audio.duration) * 100;
-            document.querySelector('.progress').style.width = progressPercent + '%';
+            if (progress) progress.style.width = progressPercent + '%';
 
-            // Update current time
             const currentMinutes = Math.floor(audio.currentTime / 60);
             const currentSeconds = Math.floor(audio.currentTime % 60).toString().padStart(2, '0');
-            currentTimeElement.textContent = `${currentMinutes}:${currentSeconds}`;
+            if (currentTimeElement) currentTimeElement.textContent = `${currentMinutes}:${currentSeconds}`;
         }
     });
 
-    // Click on progress bar to seek
-    progressBar.addEventListener('click', function(e) {
-        const width = this.clientWidth;
-        const clickX = e.offsetX;
-        const duration = audio.duration;
-        audio.currentTime = (clickX / width) * duration;
+    // Loaded metadata
+    audio.addEventListener('loadedmetadata', function() {
+        if (audio.duration && !isNaN(audio.duration)) {
+            const minutes = Math.floor(audio.duration / 60);
+            const seconds = Math.floor(audio.duration % 60).toString().padStart(2, '0');
+            if (totalTimeElement) totalTimeElement.textContent = `${minutes}:${seconds}`;
+        }
     });
 
-    // Volume bar functionality
-    volumeBar.addEventListener('click', function(e) {
-        const width = this.clientWidth;
-        const clickX = e.offsetX;
-        currentVolume = clickX / width;
-        audio.volume = currentVolume;
-        document.querySelector('.volume').style.width = (currentVolume * 100) + '%';
-    });
+    // Seek bar click
+    if (progressBar) {
+        progressBar.addEventListener('click', function(e) {
+            const rect = this.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const width = rect.width;
+            if (audio.duration && !isNaN(audio.duration)) {
+                audio.currentTime = (clickX / width) * audio.duration;
+            }
+        });
+    }
 
-    // When track ends, play next track
+    // Volume bar click
+    if (volumeBar) {
+        volumeBar.addEventListener('click', function(e) {
+            const rect = this.getBoundingClientRect();
+            const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            currentVolume = clickX / rect.width;
+            audio.volume = currentVolume;
+            isMuted = false;
+            audio.muted = false;
+            if (muteBtn) muteBtn.innerHTML = volumeHighIcon;
+            if (volume) volume.style.width = (currentVolume * 100) + '%';
+        });
+    }
+
+    // On track ended
     audio.addEventListener('ended', function() {
-        nextBtn.click();
+        if (trackList.length > 1) {
+            if (nextBtn) nextBtn.click();
+        } else {
+            isPlaying = false;
+            if (playPauseBtn) playPauseBtn.innerHTML = playIcon;
+            if (progress) progress.style.width = '0%';
+            if (currentTimeElement) currentTimeElement.textContent = '0:00';
+        }
     });
 
-    // Load track function
+    // Load track function (NO gradients, uses solid #242424 + coral initials)
     function loadTrack(index) {
         if (index < 0 || index >= trackList.length) return;
 
         const track = trackList[index];
         audio.src = track.url;
-        trackTitleElement.textContent = track.title;
-        trackArtistElement.textContent = track.artist;
+        if (trackTitleElement) trackTitleElement.textContent = track.title || 'Unknown Track';
+        if (trackArtistElement) trackArtistElement.textContent = track.artist || 'Unknown Artist';
 
-        // Set cover image or placeholder
-        if (track.cover) {
-            trackCoverElement.style.backgroundImage = `url('${track.cover}')`;
-            trackCoverElement.style.backgroundSize = 'cover';
-        } else {
-            // Generate gradient placeholder with initials
-            const initials = track.title.substring(0, 2).toUpperCase();
-            const hue = Math.floor(Math.random() * 360);
-            trackCoverElement.style.backgroundImage = `linear-gradient(135deg, hsl(${hue}, 70%, 60%), hsl(${hue}, 70%, 40%))`;
-            trackCoverElement.innerHTML = `<span>${initials}</span>`;
+        if (trackCoverElement) {
+            if (track.cover && track.cover.trim() !== '') {
+                trackCoverElement.style.backgroundImage = `url('${track.cover}')`;
+                trackCoverElement.style.backgroundColor = 'transparent';
+                trackCoverElement.innerHTML = '';
+            } else {
+                trackCoverElement.style.backgroundImage = 'none';
+                trackCoverElement.style.backgroundColor = '#242424';
+                const initials = (track.title || 'SO').substring(0, 2).toUpperCase();
+                trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
+            }
         }
-
-        // Set total time
-        audio.addEventListener('loadedmetadata', function() {
-            const duration = audio.duration;
-            const minutes = Math.floor(duration / 60);
-            const seconds = Math.floor(duration % 60).toString().padStart(2, '0');
-            totalTimeElement.textContent = `${minutes}:${seconds}`;
-        });
     }
 
-    // Keyboard shortcut for play/pause (space bar)
+    // Global helper to play a track immediately from cards / buttons
+    window.playTrackDirect = function(url, title, artist, cover) {
+        if (!url) return;
+        audio.src = url;
+        if (trackTitleElement) trackTitleElement.textContent = title || 'Unknown Track';
+        if (trackArtistElement) trackArtistElement.textContent = artist || 'Unknown Artist';
+
+        if (trackCoverElement) {
+            if (cover && cover.trim() !== '') {
+                trackCoverElement.style.backgroundImage = `url('${cover}')`;
+                trackCoverElement.style.backgroundColor = 'transparent';
+                trackCoverElement.innerHTML = '';
+            } else {
+                trackCoverElement.style.backgroundImage = 'none';
+                trackCoverElement.style.backgroundColor = '#242424';
+                const initials = (title || 'SO').substring(0, 2).toUpperCase();
+                trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
+            }
+        }
+
+        audio.play().then(function() {
+            isPlaying = true;
+            if (playPauseBtn) playPauseBtn.innerHTML = pauseIcon;
+        }).catch(function(err) {
+            console.warn('Playback error:', err);
+        });
+    };
+
+    // Global tracklist updater
+    window.updateTrackList = function(newTrackList) {
+        if (Array.isArray(newTrackList) && newTrackList.length > 0) {
+            trackList = newTrackList;
+        } else {
+            // Scan current DOM for any data-track elements
+            scanPageForTracks();
+        }
+    };
+
+    function scanPageForTracks() {
+        const trackElements = document.querySelectorAll('[data-track-url]');
+        if (trackElements.length > 0) {
+            const found = [];
+            trackElements.forEach(function(el) {
+                found.push({
+                    url: el.getAttribute('data-track-url'),
+                    title: el.getAttribute('data-track-title') || 'Unknown',
+                    artist: el.getAttribute('data-track-artist') || 'Unknown',
+                    cover: el.getAttribute('data-track-cover') || ''
+                });
+            });
+            trackList = found;
+        }
+    }
+
+    scanPageForTracks();
+
+    // Event delegation for play buttons on cards or lists
+    document.addEventListener('click', function(e) {
+        const playBtn = e.target.closest('.card-play-overlay, .btn-round-play, [data-action="play-track"]');
+        if (playBtn) {
+            const card = playBtn.closest('[data-track-url]') || playBtn;
+            const url = card.getAttribute('data-track-url');
+            if (url) {
+                e.preventDefault();
+                e.stopPropagation();
+                const title = card.getAttribute('data-track-title') || 'Track';
+                const artist = card.getAttribute('data-track-artist') || 'Artist';
+                const cover = card.getAttribute('data-track-cover') || '';
+                window.playTrackDirect(url, title, artist, cover);
+            }
+        }
+    });
+
+    // Spacebar keyboard shortcut for play/pause (when not typing in an input/textarea)
     document.addEventListener('keydown', function(e) {
         if (e.code === 'Space') {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+                return;
+            }
             e.preventDefault();
-            playPauseBtn.click();
+            if (playPauseBtn) playPauseBtn.click();
         }
     });
 
-    // Progressive enhancement for navigation
-    document.addEventListener('click', function(e) {
-        if (e.target.tagName === 'A' && e.target.href.startsWith(window.location.origin)) {
-            e.preventDefault();
-            const url = e.target.href;
-
-            fetch(url)
-                .then(response => response.text())
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const newContent = doc.querySelector('main').innerHTML;
-                    document.querySelector('main').innerHTML = newContent;
-                    window.history.pushState({}, '', url);
-
-                    // Update track list if needed
-                    if (typeof updateTrackList === 'function') {
-                        updateTrackList();
-                    }
-                });
+    // =========================================================================
+    // SPA Pjax Navigation for Public Pages
+    // =========================================================================
+    function isExcludedUrl(urlStr) {
+        try {
+            const parsed = new URL(urlStr, window.location.origin);
+            const path = parsed.pathname.toLowerCase();
+            return path.includes('/admin') ||
+                   path.endsWith('/login.php') ||
+                   path.endsWith('/register.php') ||
+                   path.endsWith('/logout.php');
+        } catch (e) {
+            return true;
         }
-    });
+    }
 
-    // Function to update track list (to be implemented by pages)
-    window.updateTrackList = function(newTrackList) {
-        trackList = newTrackList;
-        currentTrackIndex = -1;
-        isPlaying = false;
-        playPauseBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5V19L19 12L8 5Z" fill="currentColor"/></svg>';
-        trackTitleElement.textContent = 'No track playing';
-        trackArtistElement.textContent = '-';
-        trackCoverElement.style.backgroundImage = 'none';
-        trackCoverElement.innerHTML = '';
-        currentTimeElement.textContent = '0:00';
-        totalTimeElement.textContent = '0:00';
-        document.querySelector('.progress').style.width = '0%';
-    };
+    function updatePublicActiveNav(url) {
+        try {
+            const currentPath = new URL(url, window.location.origin).pathname;
+            const navLinks = document.querySelectorAll('.sidebar nav a');
+            navLinks.forEach(link => {
+                const linkPath = new URL(link.href, window.location.origin).pathname;
+                const isMatch = (linkPath === currentPath) ||
+                                (currentPath.endsWith('/') && linkPath.endsWith('/index.php')) ||
+                                (currentPath.endsWith('/index.php') && linkPath.endsWith('/'));
+
+                if (isMatch) {
+                    link.parentElement.classList.add('active');
+                } else {
+                    link.parentElement.classList.remove('active');
+                }
+            });
+        } catch (e) {}
+    }
+
+    function loadPjaxPage(url, pushState = true) {
+        if (isExcludedUrl(url) || isExcludedUrl(window.location.href)) {
+            window.location.href = url;
+            return;
+        }
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP error ' + response.status);
+                }
+                if (response.redirected && isExcludedUrl(response.url)) {
+                    window.location.href = response.url;
+                    return null;
+                }
+                return response.text();
+            })
+            .then(html => {
+                if (!html) return;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newMain = doc.querySelector('main');
+                const currentMain = document.querySelector('main');
+
+                if (!newMain || !currentMain) {
+                    window.location.href = url;
+                    return;
+                }
+
+                currentMain.innerHTML = newMain.innerHTML;
+                if (doc.title) {
+                    document.title = doc.title;
+                }
+
+                if (pushState) {
+                    window.history.pushState({ pjax: true, url: url }, doc.title || '', url);
+                }
+
+                updatePublicActiveNav(url);
+                currentMain.scrollTop = 0;
+                window.scrollTo(0, 0);
+
+                // Scan page for new tracks
+                scanPageForTracks();
+
+                if (typeof updateTrackList === 'function') {
+                    updateTrackList();
+                }
+            })
+            .catch(err => {
+                console.warn('Navigation fetch failed, falling back to full page load:', err);
+                window.location.href = url;
+            });
+    }
+
+    // Link click interception for SPA navigation
+    if (!isExcludedUrl(window.location.href)) {
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (!link || !link.href) return;
+
+            // Don't intercept external, target="_blank", modifier keys, download, or anchor hashes
+            if (!link.href.startsWith(window.location.origin)) return;
+            if (link.target === '_blank' || link.target === '_top' || link.target === '_parent') return;
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            if (link.hasAttribute('download')) return;
+
+            try {
+                const targetUrl = new URL(link.href);
+                if (targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search && targetUrl.hash) {
+                    return;
+                }
+            } catch (err) {}
+
+            // Must NOT run on admin or login/register/logout
+            if (isExcludedUrl(link.href) || isExcludedUrl(window.location.href)) {
+                return;
+            }
+
+            e.preventDefault();
+            loadPjaxPage(link.href, true);
+        });
+
+        // Handle popstate for browser Back/Forward navigation
+        window.addEventListener('popstate', function(e) {
+            if (isExcludedUrl(window.location.href)) {
+                window.location.reload();
+                return;
+            }
+            loadPjaxPage(window.location.href, false);
+        });
+    }
 });
