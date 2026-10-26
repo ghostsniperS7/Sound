@@ -26,48 +26,38 @@ include 'includes/header.php';
     <h1>Welcome to Sound</h1>
 
     <?php if ($isLoggedIn && !empty($recentlyPlayed)): ?>
-        <div class="recently-played">
+        <div class="recently-played" style="margin-bottom: 32px;">
             <h2>Recently Played</h2>
             <div class="card-grid">
                 <?php foreach ($recentlyPlayed as $item): ?>
+                    <?php 
+                        $isMusic = ($item['item_type'] === 'music');
+                        $title = $isMusic ? $item['music_title'] : $item['video_title'];
+                        $cover = $isMusic ? $item['music_cover'] : $item['video_thumbnail'];
+                        $artist = $item['artist_name'] ?? 'Artist';
+                    ?>
                     <div class="card">
-                        <div class="card-image">
-                            <?php if ($item['item_type'] === 'music'): ?>
-                                <?php if ($item['music_cover']): ?>
-                                    <img src="<?php echo htmlspecialchars($item['music_cover']); ?>" alt="<?php echo htmlspecialchars($item['music_title']); ?>">
+                        <div class="card-cover">
+                            <?php echo render_cover_tile($title, $cover, $title); ?>
+                            <div class="card-play-overlay">
+                                <?php if ($isMusic): ?>
+                                    <button class="btn-round-play play-btn" data-type="music" data-id="<?php echo $item['item_id']; ?>" data-title="<?php echo htmlspecialchars($title); ?>" data-artist="<?php echo htmlspecialchars($artist); ?>" data-cover="<?php echo htmlspecialchars(asset_url($cover)); ?>" data-url="<?php echo htmlspecialchars(asset_url($item['file_path'])); ?>" title="Play">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M8 5V19L19 12L8 5Z"/>
+                                        </svg>
+                                    </button>
                                 <?php else: ?>
-                                    <?php
-                                        $initials = strtoupper(substr($item['music_title'], 0, 2));
-                                        $hue = (ord($initials[0]) * 30) % 360;
-                                    ?>
-                                    <div class="placeholder" style="background: linear-gradient(135deg, hsl(<?php echo $hue; ?>, 70%, 60%), hsl(<?php echo $hue; ?>, 70%, 40%));">
-                                        <span><?php echo htmlspecialchars($initials); ?></span>
-                                    </div>
+                                    <a href="videos.php?id=<?php echo $item['item_id']; ?>" class="btn-round-play" title="Watch Video">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M8 5V19L19 12L8 5Z"/>
+                                        </svg>
+                                    </a>
                                 <?php endif; ?>
-                            <?php else: ?>
-                                <?php if ($item['video_thumbnail']): ?>
-                                    <img src="<?php echo htmlspecialchars($item['video_thumbnail']); ?>" alt="<?php echo htmlspecialchars($item['video_title']); ?>">
-                                <?php else: ?>
-                                    <?php
-                                        $initials = strtoupper(substr($item['video_title'], 0, 2));
-                                        $hue = (ord($initials[0]) * 30) % 360;
-                                    ?>
-                                    <div class="placeholder" style="background: linear-gradient(135deg, hsl(<?php echo $hue; ?>, 70%, 60%), hsl(<?php echo $hue; ?>, 70%, 40%));">
-                                        <span><?php echo htmlspecialchars($initials); ?></span>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endif; ?>
-                            <div class="play-overlay">
-                                <button class="play-btn" data-type="<?php echo $item['item_type']; ?>" data-id="<?php echo $item['item_id']; ?>" data-title="<?php echo htmlspecialchars($item['item_type'] === 'music' ? $item['music_title'] : $item['video_title']); ?>" data-artist="<?php echo htmlspecialchars($item['item_type'] === 'music' ? $item['artist_name'] : $item['artist_name']); ?>" data-cover="<?php echo htmlspecialchars($item['item_type'] === 'music' ? $item['music_cover'] : $item['video_thumbnail']); ?>" data-url="<?php echo htmlspecialchars($item['item_type'] === 'music' ? $item['file_path'] : $item['file_path']); ?>">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
-                                    </svg>
-                                </button>
                             </div>
                         </div>
                         <div class="card-content">
-                            <h3><?php echo htmlspecialchars($item['item_type'] === 'music' ? $item['music_title'] : $item['video_title']); ?></h3>
-                            <p><?php echo htmlspecialchars($item['artist_name']); ?></p>
+                            <h3 class="card-title"><?php echo htmlspecialchars($title); ?></h3>
+                            <p class="card-artist"><?php echo htmlspecialchars($artist); ?></p>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -75,104 +65,53 @@ include 'includes/header.php';
         </div>
     <?php endif; ?>
 
-    <div class="featured-content">
+    <div class="featured-content" style="margin-bottom: 32px;">
         <h2>Featured Music</h2>
         <div class="card-grid">
             <?php foreach ($featuredMusic as $music): ?>
                 <div class="card">
-                    <div class="card-image">
-                        <?php if ($music['cover']): ?>
-                            <img src="<?php echo htmlspecialchars($music['cover']); ?>" alt="<?php echo htmlspecialchars($music['title']); ?>">
-                        <?php else: ?>
-                            <?php
-                                $initials = strtoupper(substr($music['title'], 0, 2));
-                                $hue = (ord($initials[0]) * 30) % 360;
-                            ?>
-                            <div class="placeholder" style="background: linear-gradient(135deg, hsl(<?php echo $hue; ?>, 70%, 60%), hsl(<?php echo $hue; ?>, 70%, 40%));">
-                                <span><?php echo htmlspecialchars($initials); ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <div class="play-overlay">
-                            <button class="play-btn" data-type="music" data-id="<?php echo $music['id']; ?>" data-title="<?php echo htmlspecialchars($music['title']); ?>" data-artist="<?php echo htmlspecialchars($music['artist_name']); ?>" data-cover="<?php echo htmlspecialchars($music['cover'] ?? ''); ?>" data-url="<?php echo htmlspecialchars($music['file_path']); ?>">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
+                    <div class="card-cover">
+                        <?php echo render_cover_tile($music['title'], $music['cover'], $music['title']); ?>
+                        <div class="card-play-overlay">
+                            <button class="btn-round-play play-btn" data-type="music" data-id="<?php echo $music['id']; ?>" data-title="<?php echo htmlspecialchars($music['title']); ?>" data-artist="<?php echo htmlspecialchars($music['artist_name']); ?>" data-cover="<?php echo htmlspecialchars(asset_url($music['cover'])); ?>" data-url="<?php echo htmlspecialchars(asset_url($music['file_path'])); ?>" title="Play">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 5V19L19 12L8 5Z"/>
                                 </svg>
                             </button>
                         </div>
                     </div>
                     <div class="card-content">
-                        <h3><?php echo htmlspecialchars($music['title']); ?></h3>
-                        <p><?php echo htmlspecialchars($music['artist_name']); ?></p>
+                        <h3 class="card-title"><?php echo htmlspecialchars($music['title']); ?></h3>
+                        <p class="card-artist"><?php echo htmlspecialchars($music['artist_name']); ?></p>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
     </div>
 
-    <div class="featured-content">
+    <div class="featured-content" style="margin-bottom: 32px;">
         <h2>Featured Videos</h2>
         <div class="card-grid">
             <?php foreach ($featuredVideos as $video): ?>
                 <div class="card">
-                    <div class="card-image">
-                        <?php if ($video['thumbnail']): ?>
-                            <img src="<?php echo htmlspecialchars($video['thumbnail']); ?>" alt="<?php echo htmlspecialchars($video['title']); ?>">
-                        <?php else: ?>
-                            <?php
-                                $initials = strtoupper(substr($video['title'], 0, 2));
-                                $hue = (ord($initials[0]) * 30) % 360;
-                            ?>
-                            <div class="placeholder" style="background: linear-gradient(135deg, hsl(<?php echo $hue; ?>, 70%, 60%), hsl(<?php echo $hue; ?>, 70%, 40%));">
-                                <span><?php echo htmlspecialchars($initials); ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <div class="play-overlay">
-                            <a href="video_detail.php?id=<?php echo $video['id']; ?>" class="play-btn">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
+                    <div class="card-cover">
+                        <?php echo render_cover_tile($video['title'], $video['thumbnail'], $video['title']); ?>
+                        <div class="card-play-overlay">
+                            <a href="videos.php?id=<?php echo $video['id']; ?>" class="btn-round-play" title="Watch Video">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M8 5V19L19 12L8 5Z"/>
                                 </svg>
                             </a>
                         </div>
                     </div>
                     <div class="card-content">
-                        <h3><?php echo htmlspecialchars($video['title']); ?></h3>
-                        <p><?php echo htmlspecialchars($video['artist_name']); ?></p>
+                        <h3 class="card-title"><?php echo htmlspecialchars($video['title']); ?></h3>
+                        <p class="card-artist"><?php echo htmlspecialchars($video['artist_name']); ?></p>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
     </div>
 </div>
-
-<script>
-    // Add event listeners for play buttons
-    document.addEventListener('DOMContentLoaded', function() {
-        const playButtons = document.querySelectorAll('.play-btn[data-type="music"]');
-        const trackList = [];
-
-        playButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const track = {
-                    id: this.dataset.id,
-                    title: this.dataset.title,
-                    artist: this.dataset.artist,
-                    cover: this.dataset.cover,
-                    url: this.dataset.url
-                };
-
-                // Check if track is already in the list
-                const existingIndex = trackList.findIndex(t => t.id === track.id);
-                if (existingIndex === -1) {
-                    trackList.push(track);
-                }
-
-                // Update the player
-                updateTrackList(trackList);
-                const playPauseBtn = document.getElementById('play-pause-btn');
-                playPauseBtn.click();
-            });
-        });
-    });
-</script>
 
 <?php include 'includes/footer.php'; ?>

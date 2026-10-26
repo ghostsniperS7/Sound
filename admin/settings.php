@@ -8,16 +8,15 @@ function updateSetting($key, $value) {
     $stmt->execute([$key, $value, $value]);
 }
 
-// Get all site settings
 $settings = fetchAll("SELECT * FROM site_settings");
 $site_settings = [];
 foreach ($settings as $setting) {
     $site_settings[$setting['setting_key']] = $setting['setting_value'];
 }
 
-$errors = [];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = [];
+
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token. Please refresh and try again.';
     } else {
@@ -42,12 +41,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateSetting('contact_email', $contact_email);
             updateSetting('contact_phone', $contact_phone);
 
+            clearOldInput();
             setFlash('success', 'Site settings updated successfully.');
             header('Location: settings.php');
             exit;
         }
     }
+
+    setFlash('error', implode('<br>', $errors));
+    setOldInput($_POST);
+    header('Location: settings.php');
+    exit;
 }
+
+$form_site_name = getOldInput('site_name', $site_settings['site_name'] ?? 'SOUND');
+$form_site_tagline = getOldInput('site_tagline', $site_settings['site_tagline'] ?? 'Music & Video Streaming');
+$form_about_text = getOldInput('about_text', $site_settings['about_text'] ?? '');
+$form_contact_email = getOldInput('contact_email', $site_settings['contact_email'] ?? '');
+$form_contact_phone = getOldInput('contact_phone', $site_settings['contact_phone'] ?? '');
+clearOldInput();
 
 $page_title = 'Site Settings';
 $breadcrumbs = [
@@ -60,28 +72,9 @@ require_once __DIR__ . '/includes/admin_header.php';
 <div class="admin-page-header">
     <div>
         <h1>Site Settings</h1>
-        <p style="color: var(--admin-text-muted); margin: 4px 0 0 0; font-size: 14px;">Configure platform identity, branding, and contact details.</p>
-    </div>
-    <div class="header-actions">
-        <a href="dashboard.php" class="btn btn-secondary">
-            &larr; Back to Dashboard
-        </a>
+        <p style="color: var(--admin-text-muted); margin: 4px 0 0 0; font-size: 14px;">Manage global site configuration and information.</p>
     </div>
 </div>
-
-<?php if (!empty($errors)): ?>
-    <div class="admin-alert admin-alert-error">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-        <div>
-            <strong>Please fix the following errors:</strong>
-            <ul>
-                <?php foreach ($errors as $error): ?>
-                    <li><?php echo htmlspecialchars($error); ?></li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    </div>
-<?php endif; ?>
 
 <div class="admin-form-card">
     <form method="post" action="settings.php">
@@ -89,34 +82,33 @@ require_once __DIR__ . '/includes/admin_header.php';
 
         <div class="admin-form-group">
             <label for="site_name">Site Name <span class="required-mark">*</span></label>
-            <input type="text" id="site_name" name="site_name" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['site_name'] ?? ($site_settings['site_name'] ?? 'SOUND')); ?>" required>
+            <input type="text" id="site_name" name="site_name" class="admin-form-control" value="<?php echo htmlspecialchars($form_site_name); ?>" required>
         </div>
 
         <div class="admin-form-group">
             <label for="site_tagline">Site Tagline</label>
-            <input type="text" id="site_tagline" name="site_tagline" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['site_tagline'] ?? ($site_settings['site_tagline'] ?? '')); ?>" placeholder="Your Music and Video Streaming Platform">
+            <input type="text" id="site_tagline" name="site_tagline" class="admin-form-control" value="<?php echo htmlspecialchars($form_site_tagline); ?>">
         </div>
 
         <div class="admin-form-group">
-            <label for="about_text">About Platform Description</label>
-            <textarea id="about_text" name="about_text" class="admin-form-control" rows="5"><?php echo htmlspecialchars($_POST['about_text'] ?? ($site_settings['about_text'] ?? '')); ?></textarea>
+            <label for="about_text">About SOUND Website</label>
+            <textarea id="about_text" name="about_text" class="admin-form-control" rows="5"><?php echo htmlspecialchars($form_about_text); ?></textarea>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
             <div class="admin-form-group">
                 <label for="contact_email">Support / Contact Email</label>
-                <input type="email" id="contact_email" name="contact_email" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['contact_email'] ?? ($site_settings['contact_email'] ?? '')); ?>" placeholder="contact@example.com">
+                <input type="email" id="contact_email" name="contact_email" class="admin-form-control" value="<?php echo htmlspecialchars($form_contact_email); ?>">
             </div>
 
             <div class="admin-form-group">
                 <label for="contact_phone">Contact Phone</label>
-                <input type="tel" id="contact_phone" name="contact_phone" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['contact_phone'] ?? ($site_settings['contact_phone'] ?? '')); ?>" placeholder="+1234567890">
+                <input type="tel" id="contact_phone" name="contact_phone" class="admin-form-control" value="<?php echo htmlspecialchars($form_contact_phone); ?>">
             </div>
         </div>
 
         <div class="admin-form-actions">
             <button type="submit" class="btn btn-primary">Save Settings</button>
-            <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

@@ -2,9 +2,9 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 
-$errors = [];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = [];
+
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token. Please refresh and try again.';
     } else {
@@ -19,12 +19,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO artists (name, description) VALUES (?, ?)");
             $stmt->execute([$name, $description]);
 
+            clearOldInput();
             setFlash('success', 'Artist "' . htmlspecialchars($name) . '" added successfully.');
             header('Location: artists.php');
             exit;
         }
     }
+
+    setFlash('error', implode('<br>', $errors));
+    setOldInput($_POST);
+    header('Location: add_artist.php');
+    exit;
 }
+
+$form_name = getOldInput('name', '');
+$form_description = getOldInput('description', '');
+clearOldInput();
 
 $page_title = 'Add New Artist';
 $breadcrumbs = [
@@ -47,32 +57,18 @@ require_once __DIR__ . '/includes/admin_header.php';
     </div>
 </div>
 
-<?php if (!empty($errors)): ?>
-    <div class="admin-alert admin-alert-error">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-        <div>
-            <strong>Please fix the following errors:</strong>
-            <ul>
-                <?php foreach ($errors as $error): ?>
-                    <li><?php echo htmlspecialchars($error); ?></li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    </div>
-<?php endif; ?>
-
 <div class="admin-form-card">
     <form method="post" action="add_artist.php">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 
         <div class="admin-form-group">
             <label for="name">Artist Name <span class="required-mark">*</span></label>
-            <input type="text" id="name" name="name" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>" required placeholder="e.g. Queen, Atif Aslam">
+            <input type="text" id="name" name="name" class="admin-form-control" value="<?php echo htmlspecialchars($form_name); ?>" required placeholder="e.g. Queen, Atif Aslam">
         </div>
 
         <div class="admin-form-group">
-            <label for="description">Artist Biography / Description</label>
-            <textarea id="description" name="description" class="admin-form-control" rows="5" placeholder="Optional background information about the artist..."><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+            <label for="description">Biography / Description</label>
+            <textarea id="description" name="description" class="admin-form-control" rows="5" placeholder="Optional background or bio..."><?php echo htmlspecialchars($form_description); ?></textarea>
         </div>
 
         <div class="admin-form-actions">

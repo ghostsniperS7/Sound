@@ -49,6 +49,12 @@
                         firstInvalid.focus();
                         firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
+                } else {
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn && !submitBtn.disabled) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = 'Saving...';
+                    }
                 }
             });
         });

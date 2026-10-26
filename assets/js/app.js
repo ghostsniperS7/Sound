@@ -107,14 +107,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Loaded metadata
-    audio.addEventListener('loadedmetadata', function() {
-        if (audio.duration && !isNaN(audio.duration)) {
-            const minutes = Math.floor(audio.duration / 60);
-            const seconds = Math.floor(audio.duration % 60).toString().padStart(2, '0');
-            if (totalTimeElement) totalTimeElement.textContent = `${minutes}:${seconds}`;
+    function formatDuration(sec) {
+        if (!sec || isNaN(sec) || !isFinite(sec)) return '0:00';
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function syncDuration() {
+        if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+            if (totalTimeElement) totalTimeElement.textContent = formatDuration(audio.duration);
         }
-    });
+    }
+
+    // Loaded metadata & duration update events
+    audio.addEventListener('loadedmetadata', syncDuration);
+    audio.addEventListener('durationchange', syncDuration);
+    audio.addEventListener('canplay', syncDuration);
 
     // Seek bar click
     if (progressBar) {
@@ -154,48 +163,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Load track function (NO gradients, uses solid #242424 + coral initials)
+    function normalizeAssetUrl(url) {
+        if (!url) return '';
+        url = url.trim();
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        if (url.startsWith('/sound/')) return url;
+        if (url.startsWith('sound/')) return '/' + url;
+        return '/sound/' + url.replace(/^\/+/, '');
+    }
+
+    function renderPlayerCover(title, cover) {
+        if (!trackCoverElement) return;
+        const initials = (title || 'SO').substring(0, 2).toUpperCase();
+
+        if (cover && cover.trim() !== '') {
+            const normalizedCover = normalizeAssetUrl(cover);
+            const testImg = new Image();
+            testImg.onload = function() {
+                trackCoverElement.style.backgroundImage = `url('${normalizedCover}')`;
+                trackCoverElement.style.backgroundColor = 'transparent';
+                trackCoverElement.innerHTML = '';
+            };
+            testImg.onerror = function() {
+                trackCoverElement.style.backgroundImage = 'none';
+                trackCoverElement.style.backgroundColor = '#242424';
+                trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
+            };
+            testImg.src = normalizedCover;
+        } else {
+            trackCoverElement.style.backgroundImage = 'none';
+            trackCoverElement.style.backgroundColor = '#242424';
+            trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
+        }
+    }
+
+    // Load track function
     function loadTrack(index) {
         if (index < 0 || index >= trackList.length) return;
 
         const track = trackList[index];
-        audio.src = track.url;
+        audio.src = normalizeAssetUrl(track.url);
         if (trackTitleElement) trackTitleElement.textContent = track.title || 'Unknown Track';
         if (trackArtistElement) trackArtistElement.textContent = track.artist || 'Unknown Artist';
+        if (currentTimeElement) currentTimeElement.textContent = '0:00';
+        if (totalTimeElement) totalTimeElement.textContent = '0:00';
+        if (progress) progress.style.width = '0%';
 
-        if (trackCoverElement) {
-            if (track.cover && track.cover.trim() !== '') {
-                trackCoverElement.style.backgroundImage = `url('${track.cover}')`;
-                trackCoverElement.style.backgroundColor = 'transparent';
-                trackCoverElement.innerHTML = '';
-            } else {
-                trackCoverElement.style.backgroundImage = 'none';
-                trackCoverElement.style.backgroundColor = '#242424';
-                const initials = (track.title || 'SO').substring(0, 2).toUpperCase();
-                trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
-            }
-        }
+        renderPlayerCover(track.title, track.cover);
     }
 
     // Global helper to play a track immediately from cards / buttons
     window.playTrackDirect = function(url, title, artist, cover) {
         if (!url) return;
-        audio.src = url;
+        audio.src = normalizeAssetUrl(url);
         if (trackTitleElement) trackTitleElement.textContent = title || 'Unknown Track';
         if (trackArtistElement) trackArtistElement.textContent = artist || 'Unknown Artist';
+        if (currentTimeElement) currentTimeElement.textContent = '0:00';
+        if (totalTimeElement) totalTimeElement.textContent = '0:00';
+        if (progress) progress.style.width = '0%';
 
-        if (trackCoverElement) {
-            if (cover && cover.trim() !== '') {
-                trackCoverElement.style.backgroundImage = `url('${cover}')`;
-                trackCoverElement.style.backgroundColor = 'transparent';
-                trackCoverElement.innerHTML = '';
-            } else {
-                trackCoverElement.style.backgroundImage = 'none';
-                trackCoverElement.style.backgroundColor = '#242424';
-                const initials = (title || 'SO').substring(0, 2).toUpperCase();
-                trackCoverElement.innerHTML = `<span style="color: #FF5A3C; font-weight: 800; font-size: 14px;">${initials}</span>`;
-            }
-        }
+        renderPlayerCover(title, cover);
 
         audio.play().then(function() {
             isPlaying = true;

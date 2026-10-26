@@ -10,8 +10,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
         $delete_id = intval($_POST['id'] ?? 0);
         $album = fetchOne("SELECT * FROM albums WHERE id = ?", [$delete_id]);
         if ($album) {
-            if (!empty($album['cover']) && file_exists(__DIR__ . '/../../' . $album['cover'])) {
-                @unlink(__DIR__ . '/../../' . $album['cover']);
+            if (!empty($album['cover'])) {
+                $c = ROOT_PATH . ltrim($album['cover'], '/\\');
+                if (file_exists($c)) @unlink($c);
             }
             $stmt = $pdo->prepare("DELETE FROM albums WHERE id = ?");
             $stmt->execute([$delete_id]);
@@ -119,13 +120,7 @@ $albums = fetchAll($items_sql, $params);
                     <?php foreach ($albums as $album): ?>
                         <tr>
                             <td>
-                                <?php if (!empty($album['cover'])): ?>
-                                    <img src="/sound/<?php echo htmlspecialchars($album['cover']); ?>" alt="Cover" style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover;">
-                                <?php else: ?>
-                                    <div style="width: 40px; height: 40px; border-radius: 6px; background: rgba(124, 92, 255, 0.2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: var(--admin-primary);">
-                                        ALBUM
-                                    </div>
-                                <?php endif; ?>
+                                <?php echo render_cover_tile($album['title'], $album['cover'], 'Cover', '', 'style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover;"'); ?>
                             </td>
                             <td style="font-weight: 600; color: #fff;">
                                 <?php echo htmlspecialchars($album['title']); ?>

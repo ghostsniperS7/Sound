@@ -18,9 +18,9 @@ if (!$artist) {
     exit;
 }
 
-$errors = [];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = [];
+
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token. Please refresh and try again.';
     } else {
@@ -35,12 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE artists SET name = ?, description = ? WHERE id = ?");
             $stmt->execute([$name, $description, $artist_id]);
 
+            clearOldInput();
             setFlash('success', 'Artist "' . htmlspecialchars($name) . '" updated successfully.');
             header('Location: artists.php');
             exit;
         }
     }
+
+    setFlash('error', implode('<br>', $errors));
+    setOldInput($_POST);
+    header('Location: edit_artist.php?id=' . $artist_id);
+    exit;
 }
+
+$form_name = getOldInput('name', $artist['name']);
+$form_description = getOldInput('description', $artist['description']);
+clearOldInput();
 
 $page_title = 'Edit Artist: ' . $artist['name'];
 $breadcrumbs = [
@@ -63,32 +73,18 @@ require_once __DIR__ . '/includes/admin_header.php';
     </div>
 </div>
 
-<?php if (!empty($errors)): ?>
-    <div class="admin-alert admin-alert-error">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-        <div>
-            <strong>Please fix the following errors:</strong>
-            <ul>
-                <?php foreach ($errors as $error): ?>
-                    <li><?php echo htmlspecialchars($error); ?></li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    </div>
-<?php endif; ?>
-
 <div class="admin-form-card">
     <form method="post" action="edit_artist.php?id=<?php echo $artist_id; ?>">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 
         <div class="admin-form-group">
             <label for="name">Artist Name <span class="required-mark">*</span></label>
-            <input type="text" id="name" name="name" class="admin-form-control" value="<?php echo htmlspecialchars($_POST['name'] ?? $artist['name']); ?>" required>
+            <input type="text" id="name" name="name" class="admin-form-control" value="<?php echo htmlspecialchars($form_name); ?>" required>
         </div>
 
         <div class="admin-form-group">
             <label for="description">Artist Biography / Description</label>
-            <textarea id="description" name="description" class="admin-form-control" rows="5"><?php echo htmlspecialchars($_POST['description'] ?? $artist['description']); ?></textarea>
+            <textarea id="description" name="description" class="admin-form-control" rows="5"><?php echo htmlspecialchars($form_description); ?></textarea>
         </div>
 
         <div class="admin-form-actions">
