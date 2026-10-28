@@ -2,6 +2,16 @@
 // SOUND - Global Helper Functions & Flash API
 
 if (session_status() === PHP_SESSION_NONE) {
+    @ini_set('session.cookie_httponly', '1');
+    @ini_set('session.cookie_samesite', 'Lax');
+    @session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     @session_start();
 }
 
@@ -160,4 +170,20 @@ function getOldInput($key, $default = '') {
  */
 function clearOldInput() {
     unset($_SESSION['old_input']);
+}
+
+/**
+ * Check if an item is newly created (within the last 7 days)
+ * @param string|null $created_at Timestamp string from database
+ * @return bool True if created within the last 7 days, false otherwise
+ */
+function isNewItem($created_at) {
+    if (empty($created_at)) {
+        return false;
+    }
+    $timestamp = strtotime($created_at);
+    if ($timestamp === false) {
+        return false;
+    }
+    return $timestamp >= (time() - (7 * 86400));
 }

@@ -28,6 +28,7 @@ $artists = fetchAll("SELECT * FROM artists ORDER BY name");
 $genres = fetchAll("SELECT * FROM genres ORDER BY name");
 $languages = fetchAll("SELECT * FROM languages ORDER BY name");
 $years = fetchAll("SELECT DISTINCT year FROM years ORDER BY year DESC");
+$albums = fetchAll("SELECT al.*, ar.name as artist_name FROM albums al JOIN artists ar ON al.artist_id = ar.id ORDER BY ar.name ASC, al.title ASC");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = [];
@@ -37,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $title = trim($_POST['title'] ?? '');
         $artist_id = intval($_POST['artist_id'] ?? 0);
+        $album_id = !empty($_POST['album_id']) ? intval($_POST['album_id']) : null;
         $genre_id = intval($_POST['genre_id'] ?? 0);
         $language_id = intval($_POST['language_id'] ?? 0);
         $year = intval($_POST['year'] ?? 0);
@@ -63,6 +65,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($file_size > UPLOAD_MAX_SIZE) {
                 $errors[] = 'Music file size must be less than 100MB';
+            }
+
+            // Real MIME check with finfo_file
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $file_mime = $finfo ? finfo_file($finfo, $file_tmp_path) : '';
+            if ($finfo) finfo_close($finfo);
+
+            $allowed_music_mimes = ['audio/mpeg', 'audio/mp3'];
+            if (!in_array($file_mime, $allowed_music_mimes, true)) {
+                $errors[] = 'Invalid music file: MIME type must be audio/mpeg (detected: ' . htmlspecialchars($file_mime ?: 'unknown') . ')';
             }
 
             if (empty($errors)) {
@@ -101,6 +113,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Cover image size must be less than 10MB';
             }
 
+            // Real MIME check with finfo_file
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $cover_mime = $finfo ? finfo_file($finfo, $cover_tmp_path) : '';
+            if ($finfo) finfo_close($finfo);
+
+            $allowed_image_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($cover_mime, $allowed_image_mimes, true)) {
+                $errors[] = 'Invalid cover image: MIME type must be image/jpeg, image/png, image/gif, or image/webp (detected: ' . htmlspecialchars($cover_mime ?: 'unknown') . ')';
+            }
+
             if (empty($errors)) {
                 $cover_basename = uniqid('cover_') . '.' . $cover_ext;
                 $dest_dir = UPLOAD_DIR . 'covers';
@@ -130,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $year_id = $pdo->lastInsertId();
             }
 
-            $stmt = $pdo->prepare("UPDATE music SET artist_id = ?, genre_id = ?, language_id = ?, year_id = ?, title = ?, file_path = ?, cover = ?, description = ? WHERE id = ?");
-            $stmt->execute([$artist_id, $genre_id, $language_id, $year_id, $title, $file_path, $cover_path, $description, $music_id]);
+            $stmt = $pdo->prepare("UPDATE music SET artist_id = ?, album_id = ?, genre_id = ?, language_id = ?, year_id = ?, title = ?, file_path = ?, cover = ?, description = ? WHERE id = ?");
+            $stmt->execute([$artist_id, $album_id, $genre_id, $language_id, $year_id, $title, $file_path, $cover_path, $description, $music_id]);
 
             clearOldInput();
             setFlash('success', 'Music track "' . htmlspecialchars($title) . '" updated successfully.');
@@ -149,6 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $form_title = getOldInput('title', $music['title']);
 $form_artist_id = getOldInput('artist_id', $music['artist_id']);
+$form_album_id = getOldInput('album_id', $music['album_id']);
 $form_genre_id = getOldInput('genre_id', $music['genre_id']);
 $form_language_id = getOldInput('language_id', $music['language_id']);
 $form_year = getOldInput('year', $music['year']);
@@ -199,6 +222,21 @@ require_once __DIR__ . '/includes/admin_header.php';
             </div>
 
             <div class="admin-form-group">
+                <label for="album_id">Album <span style="color: var(--admin-text-muted); font-size: 12px; font-weight: normal;">(Optional)</span></label>
+                <select id="album_id" name="album_id" class="admin-form-control">
+                    <option value="">No Album (Single / Standalone)</option>
+                    <?php foreach ($albums as $album): ?>
+                        <option value="<?php echo $album['id']; ?>" data-artist-id="<?php echo $album['artist_id']; ?>" <?php echo ($form_album_id == $album['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($album['title'] . (!empty($album['artist_name']) ? ' — ' . $album['artist_name'] : '')); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="admin-form-hint">Filters to selected artist's albums automatically.</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="admin-form-group">
                 <label for="genre_id">Genre <span class="required-mark">*</span></label>
                 <select id="genre_id" name="genre_id" class="admin-form-control" required>
                     <option value="">Select Genre</option>
@@ -209,7 +247,6 @@ require_once __DIR__ . '/includes/admin_header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
-        </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
             <div class="admin-form-group">
@@ -270,5 +307,41 @@ require_once __DIR__ . '/includes/admin_header.php';
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var artistSelect = document.getElementById('artist_id');
+    var albumSelect = document.getElementById('album_id');
+    if (!artistSelect || !albumSelect) return;
+
+    function filterAlbums() {
+        var selectedArtist = artistSelect.value;
+        var currentSelectedAlbum = albumSelect.value;
+        var options = albumSelect.querySelectorAll('option');
+
+        options.forEach(function(opt) {
+            if (!opt.value) {
+                opt.hidden = false;
+                opt.disabled = false;
+                return;
+            }
+            var optArtist = opt.getAttribute('data-artist-id');
+            if (!selectedArtist || optArtist === selectedArtist) {
+                opt.hidden = false;
+                opt.disabled = false;
+            } else {
+                opt.hidden = true;
+                opt.disabled = true;
+                if (opt.value === currentSelectedAlbum) {
+                    albumSelect.value = '';
+                }
+            }
+        });
+    }
+
+    artistSelect.addEventListener('change', filterAlbums);
+    filterAlbums();
+});
+</script>
 
 <?php require_once __DIR__ . '/includes/admin_footer.php'; ?>

@@ -24,6 +24,20 @@ if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', ROOT_PATH . 'uploads' . DIRECTO
 // File upload configuration
 if (!defined('UPLOAD_MAX_SIZE')) define('UPLOAD_MAX_SIZE', 100 * 1024 * 1024); // 100MB
 
+// Session Cookie Parameters
+if (session_status() === PHP_SESSION_NONE) {
+    @ini_set('session.cookie_httponly', '1');
+    @ini_set('session.cookie_samesite', 'Lax');
+    @session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+}
+
 // Error Handling Configuration (Task 4)
 $logDir = ROOT_PATH . 'logs';
 if (!is_dir($logDir)) {

@@ -20,6 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
                 if (file_exists($t)) @unlink($t);
             }
 
+            // Clean up polymorphic associations
+            $pdo->prepare("DELETE FROM favorites WHERE item_type = 'video' AND item_id = ?")->execute([$delete_id]);
+            $pdo->prepare("DELETE FROM reviews WHERE item_type = 'video' AND item_id = ?")->execute([$delete_id]);
+            $pdo->prepare("DELETE FROM ratings WHERE item_type = 'video' AND item_id = ?")->execute([$delete_id]);
+            $pdo->prepare("DELETE FROM recently_played WHERE item_type = 'video' AND item_id = ?")->execute([$delete_id]);
+
             $stmt = $pdo->prepare("DELETE FROM videos WHERE id = ?");
             $stmt->execute([$delete_id]);
             setFlash('success', 'Video "' . htmlspecialchars($video['title']) . '" deleted successfully.');

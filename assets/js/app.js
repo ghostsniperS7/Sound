@@ -197,6 +197,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Player like button helper (Task 1a)
+    function updatePlayerLikeBtn(trackId) {
+        const playerLikeBtn = document.getElementById('player-like-btn');
+        if (!playerLikeBtn) return;
+        if (!trackId) {
+            playerLikeBtn.style.display = 'none';
+            playerLikeBtn.removeAttribute('data-item-id');
+            return;
+        }
+        playerLikeBtn.style.display = 'inline-flex';
+        playerLikeBtn.setAttribute('data-item-id', trackId);
+        playerLikeBtn.setAttribute('data-item-type', 'music');
+
+        const isLiked = !!(window.SOUND_USER_LIKED && window.SOUND_USER_LIKED.music && window.SOUND_USER_LIKED.music[trackId]);
+        if (isLiked) {
+            playerLikeBtn.classList.add('liked');
+            playerLikeBtn.setAttribute('title', 'Unlike');
+            playerLikeBtn.setAttribute('aria-label', 'Remove from favorites');
+        } else {
+            playerLikeBtn.classList.remove('liked');
+            playerLikeBtn.setAttribute('title', 'Like');
+            playerLikeBtn.setAttribute('aria-label', 'Add to favorites');
+        }
+    }
+
     // Load track function
     function loadTrack(index) {
         if (index < 0 || index >= trackList.length) return;
@@ -210,10 +235,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (progress) progress.style.width = '0%';
 
         renderPlayerCover(track.title, track.cover);
+        updatePlayerLikeBtn(track.id);
     }
 
     // Global helper to play a track immediately from cards / buttons
-    window.playTrackDirect = function(url, title, artist, cover) {
+    window.playTrackDirect = function(url, title, artist, cover, id) {
         if (!url) return;
         audio.src = normalizeAssetUrl(url);
         if (trackTitleElement) trackTitleElement.textContent = title || 'Unknown Track';
@@ -223,6 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (progress) progress.style.width = '0%';
 
         renderPlayerCover(title, cover);
+        updatePlayerLikeBtn(id);
 
         audio.play().then(function() {
             isPlaying = true;
@@ -248,6 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const found = [];
             trackElements.forEach(function(el) {
                 found.push({
+                    id: el.getAttribute('data-track-id') || el.getAttribute('data-id') || '',
                     url: el.getAttribute('data-track-url'),
                     title: el.getAttribute('data-track-title') || 'Unknown',
                     artist: el.getAttribute('data-track-artist') || 'Unknown',
@@ -260,8 +288,173 @@ document.addEventListener('DOMContentLoaded', function() {
 
     scanPageForTracks();
 
+    // Toast notification utility for guest and error feedback
+    function showToast(message, actionHtml) {
+        let container = document.querySelector('.sound-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'sound-toast-container';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'sound-toast';
+        toast.innerHTML = `<span>${message}</span>` + (actionHtml ? ` ${actionHtml}` : '');
+        container.appendChild(toast);
+
+        setTimeout(function() {
+            toast.classList.add('hide');
+            setTimeout(function() {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 250);
+        }, 4000);
+    }
+
+    // Helper to revert button state on failed requests
+    function revertLikeState(itemType, itemId, wasLiked) {
+        const matchingBtns = document.querySelectorAll(`[data-action="toggle-like"][data-item-type="${itemType}"][data-item-id="${itemId}"]`);
+        matchingBtns.forEach(btn => {
+            if (wasLiked) {
+                btn.classList.add('liked');
+                btn.setAttribute('title', 'Unlike');
+                btn.setAttribute('aria-label', 'Remove from favorites');
+            } else {
+                btn.classList.remove('liked');
+                btn.setAttribute('title', 'Like');
+                btn.setAttribute('aria-label', 'Add to favorites');
+            }
+        });
+        if (window.SOUND_USER_LIKED && window.SOUND_USER_LIKED[itemType]) {
+            window.SOUND_USER_LIKED[itemType][itemId] = wasLiked;
+        }
+    }
+
+    // Global like button click delegation (Task 1a & 1b)
+    document.addEventListener('click', function(e) {
+        const likeBtn = e.target.closest('[data-action="toggle-like"]');
+        if (!likeBtn) return;
+
+        // Stop propagation to prevent card play/navigation
+        e.preventDefault();
+        e.stopPropagation();
+
+        const itemType = likeBtn.getAttribute('data-item-type') || 'music';
+        const itemId = parseInt(likeBtn.getAttribute('data-item-id'), 10);
+
+        if (!itemId) return;
+
+        // Requirement 1b: For guests, show friendly message "Login to like" with link
+        if (!window.SOUND_IS_LOGGED_IN) {
+            showToast('Login to like', '<a href="/sound/login.php" class="sound-toast-login-link">Login</a>');
+            return;
+        }
+
+        const wasLiked = likeBtn.classList.contains('liked');
+        const newLiked = !wasLiked;
+
+        // Optimistic UI update across all buttons matching this item
+        const matchingBtns = document.querySelectorAll(`[data-action="toggle-like"][data-item-type="${itemType}"][data-item-id="${itemId}"]`);
+        matchingBtns.forEach(btn => {
+            if (newLiked) {
+                btn.classList.add('liked');
+                btn.setAttribute('title', 'Unlike');
+                btn.setAttribute('aria-label', 'Remove from favorites');
+            } else {
+                btn.classList.remove('liked');
+                btn.setAttribute('title', 'Like');
+                btn.setAttribute('aria-label', 'Add to favorites');
+            }
+        });
+
+        if (!window.SOUND_USER_LIKED) {
+            window.SOUND_USER_LIKED = { music: {}, video: {} };
+        }
+        if (!window.SOUND_USER_LIKED[itemType]) {
+            window.SOUND_USER_LIKED[itemType] = {};
+        }
+        window.SOUND_USER_LIKED[itemType][itemId] = newLiked;
+
+        // Sync player like button if currently playing this track
+        const playerLikeBtn = document.getElementById('player-like-btn');
+        if (playerLikeBtn && playerLikeBtn.getAttribute('data-item-id') == itemId && itemType === 'music') {
+            if (newLiked) {
+                playerLikeBtn.classList.add('liked');
+                playerLikeBtn.setAttribute('title', 'Unlike');
+            } else {
+                playerLikeBtn.classList.remove('liked');
+                playerLikeBtn.setAttribute('title', 'Like');
+            }
+        }
+
+        // Send AJAX request to /sound/favorites.php
+        const csrfToken = window.SOUND_CSRF_TOKEN || (document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '');
+        const formData = new URLSearchParams();
+        formData.append('csrf_token', csrfToken);
+        formData.append('item_type', itemType);
+        formData.append('item_id', itemId);
+
+        fetch('/sound/favorites.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-Token': csrfToken
+            },
+            body: formData.toString()
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data || !data.success) {
+                revertLikeState(itemType, itemId, wasLiked);
+                if (data && data.message) {
+                    showToast(data.message, data.login_url ? `<a href="${data.login_url}" class="sound-toast-login-link">Login</a>` : '');
+                }
+                return;
+            }
+
+            // Requirement 1c: On liked.php, dynamically remove unliked card & handle empty state
+            if (!data.liked && window.location.pathname.includes('liked.php')) {
+                const card = likeBtn.closest('.card');
+                if (card) {
+                    card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.9)';
+                    setTimeout(() => {
+                        const grid = card.closest('.card-grid');
+                        const section = card.closest('.liked-section, [data-liked-section]');
+                        card.remove();
+
+                        // Check if this specific section (music or video) is now empty
+                        if (grid && grid.querySelectorAll('.card').length === 0) {
+                            if (section) {
+                                section.style.display = 'none';
+                            }
+                        }
+
+                        // Check if entire liked collection is now empty
+                        const remainingCards = document.querySelectorAll('.card-grid .card');
+                        if (remainingCards.length === 0) {
+                            const emptyState = document.getElementById('liked-empty-state');
+                            const populatedState = document.getElementById('liked-populated-state');
+                            if (populatedState) populatedState.style.display = 'none';
+                            if (emptyState) emptyState.style.display = 'block';
+                        }
+                    }, 260);
+                }
+            }
+        })
+        .catch(err => {
+            console.warn('Favorite toggle error:', err);
+            revertLikeState(itemType, itemId, wasLiked);
+        });
+    });
+
     // Event delegation for play buttons on cards or lists
     document.addEventListener('click', function(e) {
+        // Exclude heart buttons or title/detail links from triggering playback
+        if (e.target.closest('[data-action="toggle-like"], .like-btn, .card-title a, [data-action="view-details"]')) {
+            return;
+        }
+
         const playBtn = e.target.closest('.card-play-overlay, .btn-round-play, [data-action="play-track"]');
         if (playBtn) {
             const card = playBtn.closest('[data-track-url]') || playBtn;
@@ -272,7 +465,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const title = card.getAttribute('data-track-title') || 'Track';
                 const artist = card.getAttribute('data-track-artist') || 'Artist';
                 const cover = card.getAttribute('data-track-cover') || '';
-                window.playTrackDirect(url, title, artist, cover);
+                const id = card.getAttribute('data-track-id') || playBtn.getAttribute('data-id') || '';
+                window.playTrackDirect(url, title, artist, cover, id);
             }
         }
     });
@@ -363,11 +557,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 updatePublicActiveNav(url);
+
+                // Sync top search input query with URL if on search page
+                try {
+                    const parsedUrl = new URL(url, window.location.origin);
+                    const qParam = parsedUrl.searchParams.get('q');
+                    const topInput = document.getElementById('top-search-input');
+                    const clearBtn = document.getElementById('top-search-clear');
+                    if (topInput && qParam !== null) {
+                        topInput.value = qParam;
+                        if (clearBtn) clearBtn.style.display = qParam.trim().length > 0 ? 'flex' : 'none';
+                    }
+                } catch (e) {}
+
                 currentMain.scrollTop = 0;
                 window.scrollTo(0, 0);
 
                 // Scan page for new tracks
                 scanPageForTracks();
+
+                // Sync newly inserted like buttons with current window.SOUND_USER_LIKED
+                if (window.SOUND_USER_LIKED) {
+                    currentMain.querySelectorAll('[data-action="toggle-like"]').forEach(btn => {
+                        const type = btn.getAttribute('data-item-type');
+                        const id = btn.getAttribute('data-item-id');
+                        if (type && id && window.SOUND_USER_LIKED[type] && window.SOUND_USER_LIKED[type][id]) {
+                            btn.classList.add('liked');
+                            btn.setAttribute('title', 'Unlike');
+                            btn.setAttribute('aria-label', 'Remove from favorites');
+                        }
+                    });
+                }
 
                 if (typeof updateTrackList === 'function') {
                     updateTrackList();
@@ -377,6 +597,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.warn('Navigation fetch failed, falling back to full page load:', err);
                 window.location.href = url;
             });
+    }
+
+    // =========================================================================
+    // Top Bar Search Bar (Task 2)
+    // =========================================================================
+    const topSearchInput = document.getElementById('top-search-input');
+    const topSearchClear = document.getElementById('top-search-clear');
+    const topSearchForm = document.getElementById('top-search-form');
+
+    function syncSearchClearBtn() {
+        if (!topSearchInput || !topSearchClear) return;
+        if (topSearchInput.value.trim().length > 0) {
+            topSearchClear.style.display = 'flex';
+        } else {
+            topSearchClear.style.display = 'none';
+        }
+    }
+
+    if (topSearchInput) {
+        syncSearchClearBtn();
+        topSearchInput.addEventListener('input', syncSearchClearBtn);
+        topSearchInput.addEventListener('change', syncSearchClearBtn);
+
+        if (topSearchClear) {
+            topSearchClear.addEventListener('click', function(e) {
+                e.preventDefault();
+                topSearchInput.value = '';
+                syncSearchClearBtn();
+                topSearchInput.focus();
+            });
+        }
+    }
+
+    if (topSearchForm && !isExcludedUrl(window.location.href)) {
+        topSearchForm.addEventListener('submit', function(e) {
+            const query = topSearchInput ? topSearchInput.value.trim() : '';
+            const searchUrl = '/sound/search.php' + (query ? '?q=' + encodeURIComponent(query) : '');
+            if (typeof loadPjaxPage === 'function') {
+                e.preventDefault();
+                loadPjaxPage(searchUrl, true);
+            }
+        });
     }
 
     // Link click interception for SPA navigation

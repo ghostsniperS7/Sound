@@ -20,6 +20,66 @@ function addReview($userId, $itemType, $itemId, $reviewText) {
 }
 
 /**
+ * Update an existing user review (validates ownership)
+ */
+function updateReview($reviewId, $userId, $reviewText) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT item_type, item_id FROM reviews WHERE id = ? AND user_id = ?");
+    $stmt->execute([$reviewId, $userId]);
+    $review = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$review) {
+        return false;
+    }
+
+    $updateStmt = $pdo->prepare("UPDATE reviews SET review_text = ? WHERE id = ? AND user_id = ?");
+    $success = $updateStmt->execute([$reviewText, $reviewId, $userId]);
+
+    if ($success) {
+        clearCache("reviews_{$review['item_type']}_{$review['item_id']}");
+    }
+
+    return $success;
+}
+
+/**
+ * Delete a user review (validates ownership)
+ */
+function deleteReview($reviewId, $userId) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT item_type, item_id FROM reviews WHERE id = ? AND user_id = ?");
+    $stmt->execute([$reviewId, $userId]);
+    $review = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$review) {
+        return false;
+    }
+
+    $deleteStmt = $pdo->prepare("DELETE FROM reviews WHERE id = ? AND user_id = ?");
+    $success = $deleteStmt->execute([$reviewId, $userId]);
+
+    if ($success) {
+        clearCache("reviews_{$review['item_type']}_{$review['item_id']}");
+    }
+
+    return $success;
+}
+
+/**
+ * Get user rating for an item
+ */
+function getUserRating($userId, $itemType, $itemId) {
+    if (empty($userId) || $userId <= 0) {
+        return 0;
+    }
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT rating FROM ratings WHERE user_id = ? AND item_type = ? AND item_id = ?");
+    $stmt->execute([$userId, $itemType, $itemId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return !empty($row) ? (int)$row['rating'] : 0;
+}
+
+/**
  * Add or update a 1-5 star rating
  */
 function addRating($userId, $itemType, $itemId, $rating) {
@@ -193,6 +253,7 @@ function getRecentlyPlayed($userId, $limit = 10) {
         $sql = "SELECT rp.*,
                   CASE WHEN rp.item_type = 'music' THEN m.title ELSE v.title END as title,
                   CASE WHEN rp.item_type = 'music' THEN m.cover ELSE v.thumbnail END as cover,
+                  CASE WHEN rp.item_type = 'music' THEN m.created_at ELSE v.created_at END as item_created_at,
                   a.name as artist_name
            FROM recently_played rp
            LEFT JOIN music m ON rp.item_type = 'music' AND rp.item_id = m.id
@@ -203,4 +264,47 @@ function getRecentlyPlayed($userId, $limit = 10) {
         $stmt->execute([$userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     });
+}
+
+/**
+ * Fetch all liked IDs for a user grouped by item_type (single query per page load)
+ */
+function getUserLikedIds($userId) {
+    if (empty($userId) || $userId <= 0) {
+        return ['music' => [], 'video' => []];
+    }
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT item_type, item_id FROM favorites WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $result = ['music' => [], 'video' => []];
+    foreach ($rows as $row) {
+        $type = $row['item_type'];
+        $id = (int)$row['item_id'];
+        if (!isset($result[$type])) {
+            $result[$type] = [];
+        }
+        $result[$type][$id] = true;
+    }
+    return $result;
+}
+
+/**
+ * Render standard heart like button for cards, player bar, or detail views
+ */
+function render_like_button($itemType, $itemId, $isLiked = false, $extraClasses = '', $title = '') {
+    $likedClass = $isLiked ? ' liked' : '';
+    $ariaLabel = $isLiked ? 'Remove from favorites' : 'Add to favorites';
+    $tooltipText = $title ?: ($isLiked ? 'Unlike' : 'Like');
+    $safeClass = trim('like-btn ' . $extraClasses . $likedClass);
+
+    return '<button type="button" class="' . htmlspecialchars($safeClass) . '" ' .
+           'data-action="toggle-like" ' .
+           'data-item-type="' . htmlspecialchars($itemType) . '" ' .
+           'data-item-id="' . intval($itemId) . '" ' .
+           'aria-label="' . htmlspecialchars($ariaLabel) . '" ' .
+           'title="' . htmlspecialchars($tooltipText) . '">' .
+           '<svg class="icon-heart-outline" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>' .
+           '<svg class="icon-heart-filled" width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)" stroke="var(--accent)" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>' .
+           '</button>';
 }

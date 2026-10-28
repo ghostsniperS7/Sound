@@ -49,6 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Cover image size must be less than 10MB';
             }
 
+            // Real MIME check with finfo_file
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $cover_mime = $finfo ? finfo_file($finfo, $cover_tmp_path) : '';
+            if ($finfo) finfo_close($finfo);
+
+            $allowed_image_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($cover_mime, $allowed_image_mimes, true)) {
+                $errors[] = 'Invalid cover image: MIME type must be image/jpeg, image/png, image/gif, or image/webp (detected: ' . htmlspecialchars($cover_mime ?: 'unknown') . ')';
+            }
+
             if (empty($errors)) {
                 $cover_basename = uniqid('album_') . '.' . $cover_ext;
                 $dest_dir = UPLOAD_DIR . 'covers';

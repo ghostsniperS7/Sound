@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/functions.php';
+
+// Single pre-fetch query for user's liked IDs across music and videos (Requirement 1d)
+$userLikedIds = isLoggedIn() ? getUserLikedIds(intval($_SESSION['user_id'])) : ['music' => [], 'video' => []];
 
 // Get site settings from database
 $site_settings = [];
@@ -27,6 +31,12 @@ $page_meta_desc = htmlspecialchars($site_tagline);
     <link rel="icon" type="image/svg+xml" href="/sound/favicon.svg">
     <link rel="alternate icon" href="/sound/favicon.ico">
     <link rel="stylesheet" href="/sound/assets/css/style.css">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf_token); ?>">
+    <script>
+        window.SOUND_IS_LOGGED_IN = <?php echo isLoggedIn() ? 'true' : 'false'; ?>;
+        window.SOUND_CSRF_TOKEN = <?php echo json_encode($csrf_token); ?>;
+        window.SOUND_USER_LIKED = <?php echo json_encode($userLikedIds); ?>;
+    </script>
 </head>
 <body>
     <div class="app">
@@ -90,16 +100,14 @@ $page_meta_desc = htmlspecialchars($site_tagline);
                             <span>Search</span>
                         </a>
                     </li>
-                    <?php if (isLoggedIn()): ?>
-                        <li class="<?php echo ($current_page === 'favorites.php') ? 'active' : ''; ?>">
-                            <a href="/sound/favorites.php">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                                </svg>
-                                <span>Liked</span>
-                            </a>
-                        </li>
-                    <?php endif; ?>
+                    <li class="<?php echo ($current_page === 'liked.php' || $current_page === 'favorites.php') ? 'active' : ''; ?>">
+                        <a href="/sound/liked.php">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            <span>Liked</span>
+                        </a>
+                    </li>
                     <li class="<?php echo ($current_page === 'about.php') ? 'active' : ''; ?>">
                         <a href="/sound/about.php">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -175,12 +183,22 @@ $page_meta_desc = htmlspecialchars($site_tagline);
             <!-- Spotify-Style Top Bar -->
             <header class="top-bar">
                 <div class="top-bar-search">
-                    <form action="/sound/search.php" method="get">
-                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <input type="search" name="q" placeholder="What do you want to play?" value="<?php echo htmlspecialchars($_GET['q'] ?? ''); ?>" aria-label="Search">
+                    <form action="/sound/search.php" method="get" class="top-bar-search-form" id="top-search-form" role="search">
+                        <div class="search-input-wrapper">
+                            <span class="search-icon-wrapper" aria-hidden="true">
+                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            </span>
+                            <input type="search" id="top-search-input" name="q" placeholder="What do you want to play?" value="<?php echo htmlspecialchars($_GET['q'] ?? ''); ?>" aria-label="Search" autocomplete="off">
+                            <button type="button" class="search-clear-btn" id="top-search-clear" aria-label="Clear search" title="Clear search" style="<?php echo !empty($_GET['q']) ? 'display: flex;' : 'display: none;'; ?>">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </form>
                 </div>
 
